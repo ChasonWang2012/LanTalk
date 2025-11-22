@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天室管理面板</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        input, textarea, button {
+            margin: 5px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button.danger {
+            background: #dc3545;
+        }
+        button.danger:hover {
+            background: #c82333;
+        }
+        .user-item, .ip-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .muted {
+            color: #dc3545;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💬 聊天室管理面板</h1>
+        
+        <div class="section">
+            <h3>📊 服务器状态</h3>
+            <div id="server-status">加载中...</div>
+            <button onclick="loadServerStatus()">刷新状态</button>
+        </div>
+
+        <div class="section">
+            <h3>👥 在线用户管理</h3>
+            <button onclick="loadUsers()">刷新用户列表</button>
+            <div id="users-list"></div>
+        </div>
+
+        <div class="section">
+            <h3>🔇 IP禁言管理</h3>
+            <input type="text" id="ip-input" placeholder="输入要禁言的IP地址">
+            <button onclick="muteIP()">禁言IP</button>
+            <button onclick="unmuteIP()">解除禁言</button>
+            <div id="muted-ips-list"></div>
+        </div>
+
+        <div class="section">
+            <h3>📢 管理员广播</h3>
+            <textarea id="broadcast-message" placeholder="输入广播消息" rows="3" style="width: 100%;"></textarea>
+            <button onclick="sendBroadcast()">发送广播</button>
+        </div>
+
+        <div class="section">
+            <h3>💬 房间列表</h3>
+            <button onclick="loadRooms()">刷新房间列表</button>
+            <div id="rooms-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const SERVER_URL = 'http://192.168.2.10:3001';
+
+        // 加载服务器状态
+        async function loadServerStatus() {
+            try {
+                const response = await fetch(`${SERVER_URL}/api/health`);
+                const data = await response.json();
+                document.getElementById('server-status').innerHTML = `
+                    <p>✅ 服务器运行正常</p>
+                    <p>在线用户: ${data.users}人</p>
+                    <p>聊天房间: ${data.rooms}个</p>
+                    <p>被禁言IP: ${data.mutedIPs}个</p>
+                    <p>服务器IP: ${data.serverIP}</p>
+                `;
+            } catch (error) {
+                document.getElementById('server-status').innerHTML = '❌ 无法连接服务器';
+            }
+        }
+
+        // 加载用户列表
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${SERVER_URL}/api/users`);
+                const users = await response.json();
+                
+                let html = '<h4>在线用户列表:</h4>';
+                users.forEach(user => {
+                    html += `
+                        <div class="user-item">
+                            <div>
+                                <strong>${user.username}</strong> 
+                                (IP: ${user.ip})
+                                ${user.isMuted ? '<span class="muted">[已禁言]</span>' : ''}
+                            </div>
+                            <div>
+                                <button onclick="muteUserIP('${user.ip}')" ${user.isMuted ? 'disabled' : ''}>禁言</button>
+                                <button onclick="unmuteUserIP('${user.ip}')" ${!user.isMuted ? 'disabled' : ''}>解禁</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                document.getElementById('users-list').innerHTML = html;
+            } catch (error) {
+                document.getElementById('users-list').innerHTML = '❌ 加载用户列表失败';
+            }
+        }
+
+        // 禁言指定IP
+        async function muteIP() {
+            const ip = document.getElementById('ip-input').value.trim();
+            if (!ip) return alert('请输入IP地址');
+
+            try {
+                const response = await fetch(`${SERVER_URL}/api/mute-ip`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ip })
+                });
+                const result = await response.json();
+                alert(result.message);
+                loadUsers();
+                loadMutedIPs();
+            } catch (error) {
+                alert('禁言操作失败');
+            }
+        }
+
+        // 解除禁言
+        async function unmuteIP() {
+            const ip = document.getElementById('ip-input').value.trim();
+            if (!ip) return alert('请输入IP地址');
+
+            try {
+                const response = await fetch(`${SERVER_URL}/api/unmute-ip`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ip })
+                });
+                const result = await response.json();
+                alert(result.message);
+                loadUsers();
+                loadMutedIPs();
+            } catch (error) {
+                alert('解除禁言操作失败');
+            }
+        }
+
+        // 禁言用户IP
+        async function muteUserIP(ip) {
+            try {
+                const response = await fetch(`${SERVER_URL}/api/mute-ip`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ip })
+                });
+                const result = await response.json();
+                alert(result.message);
+                loadUsers();
+                loadMutedIPs();
+            } catch (error) {
+                alert('禁言操作失败');
+            }
+        }
+
+        // 解除用户禁言
+        async function unmuteUserIP(ip) {
+            try {
+                const response = await fetch(`${SERVER_URL}/api/unmute-ip`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ip })
+                });
+                const result = await response.json();
+                alert(result.message);
+                loadUsers();
+                loadMutedIPs();
+            } catch (error) {
+                alert('解除禁言操作失败');
+            }
+        }
+
+        // 加载被禁言的IP列表
+        async function loadMutedIPs() {
+            try {
+                const response = await fetch(`${SERVER_URL}/api/muted-ips`);
+                const mutedIPs = await response.json();
+                
+                let html = '<h4>被禁言的IP列表:</h4>';
+                if (mutedIPs.length === 0) {
+                    html += '<p>暂无被禁言的IP</p>';
+                } else {
+                    mutedIPs.forEach(ip => {
+                        html += `
+                            <div class="ip-item">
+                                <span>${ip}</span>
+                                <button onclick="unmuteUserIP('${ip}')">解除禁言</button>
+                            </div>
+                        `;
+                    });
+                }
+                document.getElementById('muted-ips-list').innerHTML = html;
+            } catch (error) {
+                document.getElementById('muted-ips-list').innerHTML = '❌ 加载禁言列表失败';
+            }
+        }
+
+        // 发送广播消息
+        async function sendBroadcast() {
+            const message = document.getElementById('broadcast-message').value.trim();
+            if (!message) return alert('请输入广播消息');
+
+            try {
+                const response = await fetch(`${SERVER_URL}/api/broadcast`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message })
+                });
+                const result = await response.json();
+                alert(result.message);
+                document.getElementById('broadcast-message').value = '';
+            } catch (error) {
+                alert('广播发送失败');
+            }
+        }
+
+        // 加载房间列表
+        async function loadRooms() {
+            try {
+                const response = await fetch(`${SERVER_URL}/api/rooms`);
+                const rooms = await response.json();
+                
+                let html = '<h4>聊天房间列表:</h4>';
+                rooms.forEach(room => {
+                    html += `
+                        <div class="user-item">
+                            <strong>${room.name}</strong>
+                            <span>用户数: ${room.userCount}</span>
+                        </div>
+                    `;
+                });
+                document.getElementById('rooms-list').innerHTML = html;
+            } catch (error) {
+                document.getElementById('rooms-list').innerHTML = '❌ 加载房间列表失败';
+            }
+        }
+
+        // 页面加载时自动刷新数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadServerStatus();
+            loadUsers();
+            loadMutedIPs();
+            loadRooms();
+        });
+    </script>
+</body>
+</html>
