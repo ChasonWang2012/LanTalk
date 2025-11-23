@@ -1,7 +1,5 @@
 /**
- * LanTalk 聊天室服务器主文件
- * 功能：处理实时消息、用户管理、房间管理
- * 依赖：Express, Socket.IO
+服务端主程序
  */
 const express = require('express');
 const http = require('http');
