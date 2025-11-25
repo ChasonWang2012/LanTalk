@@ -4,6 +4,68 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const os = require('os');
 
+// Markdown 处理模块
+const marked = require('marked');
+const { JSDOM } = require('jsdom');
+const createDOMPurify = require('dompurify');
+
+const window = new JSDOM('').window;
+const DOMPurify = createDOMPurify(window);
+
+// 配置 marked
+marked.setOptions({
+  highlight: function(code, lang) {
+    return code;
+  },
+  breaks: true,
+  gfm: true,
+  tables: true,
+  sanitize: false
+});
+
+// Markdown 处理函数
+function processMarkdown(content) {
+  try {
+    const rawHtml = marked.parse(content);
+    const cleanHtml = DOMPurify.sanitize(rawHtml, {
+      ALLOWED_TAGS: [
+        'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 
+        'blockquote', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'span', 'div'
+      ],
+      ALLOWED_ATTR: [
+        'href', 'target', 'rel', 'src', 'alt', 'title', 'class'
+      ],
+      ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+    });
+    return cleanHtml;
+  } catch (error) {
+    console.error('Markdown processing error:', error);
+    return DOMPurify.sanitize(content);
+  }
+}
+
+// 检查是否包含Markdown语法
+function containsMarkdown(text) {
+  const markdownPatterns = [
+    /\*\*(.*?)\*\*/,
+    /\*(.*?)\*/,
+    /__(.*?)__/,
+    /~~(.*?)~~/,
+    /`(.*?)`/,
+    /```([\s\S]*?)```/m,
+    /\[(.*?)\]\((.*?)\)/,
+    /!\[(.*?)\]\((.*?)\)/,
+    /^#+\s+.+/m,
+    /^>\s+.+/m,
+    /^-\s+.+/m,
+    /^\d+\.\s+.+/m,
+    /\|.*\|/
+  ];
+  return markdownPatterns.some(pattern => pattern.test(text));
+}
+
 // 简单的ID生成器
 function generateId() {
     return 'id-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
@@ -53,7 +115,8 @@ const localIP = getLocalIP();
 // 中间件
 app.use(cors());
 app.use(express.json());
-app.use(express.static('.'));
+app.use('/client', express.static('../client'));
+app.use('/admin', express.static('../admin'));
 
 // 创建默认房间
 rooms.set('default', {
@@ -246,11 +309,17 @@ io.on('connection', (socket) => {
         
         if (!content.trim()) return;
         
+        // 处理 Markdown
+        const isMarkdown = containsMarkdown(content);
+        const processedContent = isMarkdown ? processMarkdown(content) : content;
+        
         const message = {
             id: generateId(),
             type: 'text',
             username: user.username,
             content: content.trim(),
+            processedContent: processedContent,
+            isMarkdown: isMarkdown,
             timestamp: Date.now(),
             room: roomId,
             userIP: user.ip
@@ -334,12 +403,9 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 内网聊天室服务器已启动');
     console.log(`📍 本地访问: http://localhost:${PORT}`);
     console.log(`🌐 内网访问: http://${localIP}:${PORT}`);
-    console.log(`📊 管理界面: http://${localIP}:${PORT}/api/health`);
-    console.log('🛡️  功能特性:');
-    console.log('   • IP禁言管理');
-    console.log('   • 用户IP显示');
-    console.log('   • 多房间支持');
-    console.log('   • 管理员广播');
+    console.log(`💬 聊天室: http://${localIP}:${PORT}/client/index.html`);
+    console.log(`🛡️  管理面板: http://${localIP}:${PORT}/admin/admin.html`);
+    console.log('📝 新功能: 支持Markdown语法');
     console.log('================================');
     console.log('按 Ctrl+C 停止服务器');
 });
