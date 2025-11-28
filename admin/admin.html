@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
             background: #f5f5f5;
@@ -24,17 +24,19 @@
             border: 1px solid #ddd;
             border-radius: 5px;
         }
-        input, textarea, button {
+        input, textarea, button, select {
             margin: 5px;
             padding: 8px;
             border: 1px solid #ccc;
             border-radius: 4px;
+            font-size: 14px;
         }
         button {
             background: #007bff;
             color: white;
             border: none;
             cursor: pointer;
+            transition: background 0.3s;
         }
         button:hover {
             background: #0056b3;
@@ -45,18 +47,108 @@
         button.danger:hover {
             background: #c82333;
         }
-        .user-item, .ip-item {
-            padding: 8px;
-            margin: 5px 0;
+        button.success {
+            background: #28a745;
+        }
+        button.success:hover {
+            background: #218838;
+        }
+        button.secondary {
+            background: #6c757d;
+        }
+        button.secondary:hover {
+            background: #545b62;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .user-item, .ip-item, .room-item {
+            padding: 12px;
+            margin: 8px 0;
             background: #f8f9fa;
-            border-radius: 4px;
+            border-radius: 6px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-left: 4px solid #007bff;
+        }
+        .room-item {
+            border-left-color: #28a745;
+        }
+        .ip-item {
+            border-left-color: #dc3545;
         }
         .muted {
             color: #dc3545;
             font-weight: bold;
+        }
+        .room-stats {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .stat-card {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            flex: 1;
+            border: 1px solid #dee2e6;
+        }
+        .stat-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .room-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .empty-state {
+            text-align: center;
+            color: #6c757d;
+            padding: 30px;
+            font-style: italic;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #495057;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-online {
+            background: #28a745;
+        }
+        .status-offline {
+            background: #dc3545;
+        }
+        .room-info {
+            flex: 1;
+        }
+        .room-meta {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 4px;
+        }
+        .danger-zone {
+            border-left-color: #dc3545 !important;
+            background: #fff5f5;
         }
     </style>
 </head>
@@ -70,6 +162,39 @@
             <button onclick="loadServerStatus()">刷新状态</button>
         </div>
 
+        <!-- 房间管理部分 -->
+        <div class="section">
+            <h3>🏠 房间管理</h3>
+            <div class="room-stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="total-rooms">0</div>
+                    <div class="stat-label">总房间数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="total-users">0</div>
+                    <div class="stat-label">总用户数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="active-rooms">0</div>
+                    <div class="stat-label">活跃房间</div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>创建新房间</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="new-room-id" placeholder="房间ID (2-20字符)" style="flex: 1;">
+                    <input type="text" id="new-room-name" placeholder="房间名称 (可选)" style="flex: 1;">
+                    <button class="success" onclick="createRoom()">创建房间</button>
+                    <button class="secondary" onclick="loadRooms()">刷新列表</button>
+                </div>
+            </div>
+            
+            <div id="rooms-list">
+                <div class="empty-state">加载房间列表中...</div>
+            </div>
+        </div>
+
         <div class="section">
             <h3>👥 在线用户管理</h3>
             <button onclick="loadUsers()">刷新用户列表</button>
@@ -78,22 +203,25 @@
 
         <div class="section">
             <h3>🔇 IP禁言管理</h3>
-            <input type="text" id="ip-input" placeholder="输入要禁言的IP地址">
-            <button onclick="muteIP()">禁言IP</button>
-            <button onclick="unmuteIP()">解除禁言</button>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" id="ip-input" placeholder="输入要禁言的IP地址" style="flex: 1;">
+                <button onclick="muteIP()">禁言IP</button>
+                <button onclick="unmuteIP()">解除禁言</button>
+            </div>
             <div id="muted-ips-list"></div>
         </div>
 
         <div class="section">
             <h3>📢 管理员广播</h3>
-            <textarea id="broadcast-message" placeholder="输入广播消息" rows="3" style="width: 100%;"></textarea>
+            <textarea id="broadcast-message" placeholder="输入广播消息内容..." rows="3" style="width: 100%;"></textarea>
             <button onclick="sendBroadcast()">发送广播</button>
         </div>
 
-        <div class="section">
-            <h3>💬 房间列表</h3>
-            <button onclick="loadRooms()">刷新房间列表</button>
-            <div id="rooms-list"></div>
+        <!-- 调试工具 -->
+        <div class="section danger-zone">
+            <h3>🔧 调试工具</h3>
+            <button class="secondary" onclick="testRoomAPI()">测试房间API</button>
+            <button class="secondary" onclick="showDebugInfo()">显示调试信息</button>
         </div>
     </div>
 
@@ -106,14 +234,240 @@
                 const response = await fetch(`${SERVER_URL}/api/health`);
                 const data = await response.json();
                 document.getElementById('server-status').innerHTML = `
-                    <p>✅ 服务器运行正常</p>
-                    <p>在线用户: ${data.users}人</p>
-                    <p>聊天房间: ${data.rooms}个</p>
-                    <p>被禁言IP: ${data.mutedIPs}个</p>
-                    <p>服务器IP: ${data.serverIP}</p>
+                    <p><span class="status-indicator status-online"></span>服务器运行正常</p>
+                    <p>在线用户: <strong>${data.users}人</strong></p>
+                    <p>聊天房间: <strong>${data.rooms}个</strong></p>
+                    <p>被禁言IP: <strong>${data.mutedIPs}个</strong></p>
+                    <p>服务器IP: <strong>${data.serverIP}</strong></p>
+                    <p>启动时间: <strong>${new Date(data.timestamp).toLocaleString()}</strong></p>
                 `;
             } catch (error) {
-                document.getElementById('server-status').innerHTML = '❌ 无法连接服务器';
+                document.getElementById('server-status').innerHTML = 
+                    '<p><span class="status-indicator status-offline"></span>❌ 无法连接服务器</p>';
+            }
+        }
+
+        // 创建房间
+        async function createRoom() {
+            const roomId = document.getElementById('new-room-id').value.trim();
+            const roomName = document.getElementById('new-room-name').value.trim();
+
+            if (!roomId) {
+                alert('请输入房间ID');
+                return;
+            }
+
+            if (roomId.length < 2 || roomId.length > 20) {
+                alert('房间ID长度应为2-20个字符');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${SERVER_URL}/api/rooms`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        roomId, 
+                        roomName: roomName || roomId,
+                        adminToken: 'admin123'  // 管理员令牌，绕过禁言检查
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('✅ ' + result.message);
+                    document.getElementById('new-room-id').value = '';
+                    document.getElementById('new-room-name').value = '';
+                    loadRooms();
+                } else {
+                    alert('❌ 创建失败: ' + result.error);
+                }
+            } catch (error) {
+                alert('❌ 创建房间失败: ' + error.message);
+            }
+        }
+
+        // 删除房间 - 支持强制删除
+        async function deleteRoom(roomId, roomName, userCount = 0) {
+            console.log('开始删除房间:', roomId, roomName, '用户数:', userCount);
+            
+            if (!roomId) {
+                alert('错误：房间ID为空');
+                return;
+            }
+
+            let forceDelete = false;
+            
+            // 如果房间有用户，询问是否强制删除
+            if (userCount > 0) {
+                const result = confirm(
+                    `房间 "${roomName}" 中还有 ${userCount} 个用户\n\n` +
+                    '请选择操作：\n' +
+                    '• 点击"确定" - 强制删除（踢出所有用户）\n' +
+                    '• 点击"取消" - 仅踢出用户但不删除房间'
+                );
+                
+                if (result) {
+                    // 强制删除房间
+                    forceDelete = true;
+                } else {
+                    // 只踢出用户，不删除房间
+                    await kickUsersFromRoom(roomId, roomName);
+                    return;
+                }
+            } else {
+                // 空房间，直接确认删除
+                if (!confirm(`确定要删除房间 "${roomName}" 吗？\n\n房间ID: ${roomId}\n此操作不可撤销！`)) {
+                    return;
+                }
+            }
+
+            try {
+                console.log('发送删除请求...', '强制模式:', forceDelete);
+                const url = `${SERVER_URL}/api/rooms/${encodeURIComponent(roomId)}${forceDelete ? '?force=true' : ''}`;
+                const response = await fetch(url, {
+                    method: 'DELETE'
+                });
+                
+                console.log('响应状态:', response.status);
+                const result = await response.json();
+                console.log('响应结果:', result);
+                
+                if (response.ok) {
+                    alert('✅ ' + result.message);
+                    loadRooms();
+                } else {
+                    alert('❌ 删除失败: ' + (result.error || '未知错误'));
+                }
+            } catch (error) {
+                console.error('删除错误:', error);
+                alert('❌ 删除房间失败: ' + error.message);
+            }
+        }
+
+        // 踢出房间中的所有用户
+        async function kickUsersFromRoom(roomId, roomName) {
+            if (!confirm(`确定要踢出房间 "${roomName}" 中的所有用户吗？\n\n用户将被移回默认聊天室。`)) {
+                return;
+            }
+
+            try {
+                console.log('发送踢出用户请求...');
+                const response = await fetch(`${SERVER_URL}/api/rooms/${encodeURIComponent(roomId)}/kick-users`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({}) // 发送空对象
+                });
+                
+                console.log('踢出响应状态:', response.status);
+                
+                // 检查响应内容类型
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('非JSON响应:', text.substring(0, 200));
+                    throw new Error('服务器返回了错误的响应格式');
+                }
+                
+                const result = await response.json();
+                console.log('踢出响应结果:', result);
+                
+                if (response.ok) {
+                    alert('✅ ' + result.message);
+                    loadRooms();
+                    loadUsers(); // 刷新用户列表
+                } else {
+                    alert('❌ 踢出用户失败: ' + (result.error || '未知错误'));
+                }
+            } catch (error) {
+                console.error('踢出用户错误:', error);
+                alert('❌ 踢出用户失败: ' + error.message + '\n\n请确保服务器端已添加踢出用户的API路由。');
+            }
+        }
+
+        // 查看房间用户详情
+        async function viewRoomUsers(roomId, roomName) {
+            try {
+                const response = await fetch(`${SERVER_URL}/api/rooms`);
+                const rooms = await response.json();
+                const room = rooms.find(r => r.id === roomId);
+                
+                if (room && room.userCount > 0) {
+                    const userList = room.users ? room.users.map(u => `• ${u.username} (IP: ${u.ip})`).join('\n') : '无法获取用户详情';
+                    alert(`房间 "${roomName}" 中的用户:\n\n${userList}`);
+                } else {
+                    alert(`房间 "${roomName}" 中没有用户或无法获取用户信息`);
+                }
+            } catch (error) {
+                alert('获取房间用户信息失败: ' + error.message);
+            }
+        }
+
+        // 加载房间列表
+        async function loadRooms() {
+            try {
+                const response = await fetch(`${SERVER_URL}/api/rooms`);
+                const rooms = await response.json();
+                
+                // 更新统计信息
+                document.getElementById('total-rooms').textContent = rooms.length;
+                document.getElementById('total-users').textContent = rooms.reduce((sum, room) => sum + room.userCount, 0);
+                document.getElementById('active-rooms').textContent = rooms.filter(room => room.userCount > 0).length;
+                
+                let html = '';
+                if (rooms.length === 0) {
+                    html = '<div class="empty-state">暂无房间</div>';
+                } else {
+                    rooms.forEach(room => {
+                        const isDefaultRoom = room.id === 'default';
+                        const hasUsers = room.userCount > 0;
+                        const canDelete = !isDefaultRoom;
+                        
+                        html += `
+                            <div class="room-item">
+                                <div class="room-info">
+                                    <strong>${room.name}</strong> 
+                                    <div class="room-meta">
+                                        ID: ${room.id} | 
+                                        用户: <span class="${hasUsers ? 'muted' : ''}">${room.userCount}人</span> | 
+                                        创建: ${new Date(room.created).toLocaleString()}
+                                        ${isDefaultRoom ? ' | <span style="color:#dc3545;">默认房间</span>' : ''}
+                                    </div>
+                                </div>
+                                <div class="room-actions">
+                                    ${canDelete ? 
+                                        `<button class="danger" onclick="deleteRoom('${room.id}', '${room.name}', ${room.userCount})">
+                                            ${hasUsers ? '强制删除' : '删除房间'}
+                                        </button>` : 
+                                        `<button disabled title="默认房间不可删除">删除</button>`
+                                    }
+                                    ${hasUsers && !isDefaultRoom ? 
+                                        `<button class="secondary" onclick="kickUsersFromRoom('${room.id}', '${room.name}')" title="踢出所有用户">
+                                            踢出用户
+                                        </button>` : 
+                                        ''
+                                    }
+                                    ${hasUsers ? 
+                                        `<button class="secondary" onclick="viewRoomUsers('${room.id}', '${room.name}')" title="查看房间用户">
+                                            查看用户
+                                        </button>` : 
+                                        ''
+                                    }
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                document.getElementById('rooms-list').innerHTML = html;
+            } catch (error) {
+                console.error('加载房间列表失败:', error);
+                document.getElementById('rooms-list').innerHTML = 
+                    '<div class="empty-state">❌ 加载房间列表失败: ' + error.message + '</div>';
             }
         }
 
@@ -124,24 +478,32 @@
                 const users = await response.json();
                 
                 let html = '<h4>在线用户列表:</h4>';
-                users.forEach(user => {
-                    html += `
-                        <div class="user-item">
-                            <div>
-                                <strong>${user.username}</strong> 
-                                (IP: ${user.ip})
-                                ${user.isMuted ? '<span class="muted">[已禁言]</span>' : ''}
+                if (users.length === 0) {
+                    html += '<div class="empty-state">暂无在线用户</div>';
+                } else {
+                    users.forEach(user => {
+                        html += `
+                            <div class="user-item">
+                                <div>
+                                    <strong>${user.username}</strong> 
+                                    <div class="room-meta">
+                                        IP: ${user.ip} | 
+                                        加入: ${new Date(user.joinTime).toLocaleString()}
+                                        ${user.isMuted ? ' | <span class="muted">已禁言</span>' : ''}
+                                    </div>
+                                </div>
+                                <div class="room-actions">
+                                    <button onclick="muteUserIP('${user.ip}')" ${user.isMuted ? 'disabled' : ''}>禁言</button>
+                                    <button onclick="unmuteUserIP('${user.ip}')" ${!user.isMuted ? 'disabled' : ''}>解禁</button>
+                                </div>
                             </div>
-                            <div>
-                                <button onclick="muteUserIP('${user.ip}')" ${user.isMuted ? 'disabled' : ''}>禁言</button>
-                                <button onclick="unmuteUserIP('${user.ip}')" ${!user.isMuted ? 'disabled' : ''}>解禁</button>
-                            </div>
-                        </div>
-                    `;
-                });
+                        `;
+                    });
+                }
                 document.getElementById('users-list').innerHTML = html;
             } catch (error) {
-                document.getElementById('users-list').innerHTML = '❌ 加载用户列表失败';
+                console.error('加载用户列表失败:', error);
+                document.getElementById('users-list').innerHTML = '❌ 加载用户列表失败: ' + error.message;
             }
         }
 
@@ -159,11 +521,11 @@
                     body: JSON.stringify({ ip })
                 });
                 const result = await response.json();
-                alert(result.message);
+                alert(response.ok ? '✅ ' + result.message : '❌ ' + result.error);
                 loadUsers();
                 loadMutedIPs();
             } catch (error) {
-                alert('禁言操作失败');
+                alert('❌ 禁言操作失败: ' + error.message);
             }
         }
 
@@ -181,11 +543,11 @@
                     body: JSON.stringify({ ip })
                 });
                 const result = await response.json();
-                alert(result.message);
+                alert(response.ok ? '✅ ' + result.message : '❌ ' + result.error);
                 loadUsers();
                 loadMutedIPs();
             } catch (error) {
-                alert('解除禁言操作失败');
+                alert('❌ 解除禁言操作失败: ' + error.message);
             }
         }
 
@@ -200,11 +562,11 @@
                     body: JSON.stringify({ ip })
                 });
                 const result = await response.json();
-                alert(result.message);
+                alert(response.ok ? '✅ ' + result.message : '❌ ' + result.error);
                 loadUsers();
                 loadMutedIPs();
             } catch (error) {
-                alert('禁言操作失败');
+                alert('❌ 禁言操作失败: ' + error.message);
             }
         }
 
@@ -219,11 +581,11 @@
                     body: JSON.stringify({ ip })
                 });
                 const result = await response.json();
-                alert(result.message);
+                alert(response.ok ? '✅ ' + result.message : '❌ ' + result.error);
                 loadUsers();
                 loadMutedIPs();
             } catch (error) {
-                alert('解除禁言操作失败');
+                alert('❌ 解除禁言操作失败: ' + error.message);
             }
         }
 
@@ -235,7 +597,7 @@
                 
                 let html = '<h4>被禁言的IP列表:</h4>';
                 if (mutedIPs.length === 0) {
-                    html += '<p>暂无被禁言的IP</p>';
+                    html += '<div class="empty-state">暂无被禁言的IP</div>';
                 } else {
                     mutedIPs.forEach(ip => {
                         html += `
@@ -248,7 +610,8 @@
                 }
                 document.getElementById('muted-ips-list').innerHTML = html;
             } catch (error) {
-                document.getElementById('muted-ips-list').innerHTML = '❌ 加载禁言列表失败';
+                console.error('加载禁言列表失败:', error);
+                document.getElementById('muted-ips-list').innerHTML = '❌ 加载禁言列表失败: ' + error.message;
             }
         }
 
@@ -266,40 +629,44 @@
                     body: JSON.stringify({ message })
                 });
                 const result = await response.json();
-                alert(result.message);
+                alert(response.ok ? '✅ ' + result.message : '❌ ' + result.error);
                 document.getElementById('broadcast-message').value = '';
             } catch (error) {
-                alert('广播发送失败');
+                alert('❌ 广播发送失败: ' + error.message);
             }
         }
 
-        // 加载房间列表
-        async function loadRooms() {
+        // 测试房间API
+        async function testRoomAPI() {
             try {
                 const response = await fetch(`${SERVER_URL}/api/rooms`);
                 const rooms = await response.json();
-                
-                let html = '<h4>聊天房间列表:</h4>';
-                rooms.forEach(room => {
-                    html += `
-                        <div class="user-item">
-                            <strong>${room.name}</strong>
-                            <span>用户数: ${room.userCount}</span>
-                        </div>
-                    `;
-                });
-                document.getElementById('rooms-list').innerHTML = html;
+                alert(`✅ API连接正常\n共有 ${rooms.length} 个房间\n最新房间: ${rooms[0]?.name || '无'}`);
+                console.log('所有房间:', rooms);
             } catch (error) {
-                document.getElementById('rooms-list').innerHTML = '❌ 加载房间列表失败';
+                alert('❌ API连接失败: ' + error.message);
             }
+        }
+
+        // 显示调试信息
+        function showDebugInfo() {
+            console.log('调试信息:');
+            console.log('服务器地址:', SERVER_URL);
+            console.log('当前时间:', new Date().toLocaleString());
         }
 
         // 页面加载时自动刷新数据
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('管理面板初始化...');
             loadServerStatus();
+            loadRooms();
             loadUsers();
             loadMutedIPs();
-            loadRooms();
+            
+            // 每30秒自动刷新状态
+            setInterval(loadServerStatus, 30000);
+            // 每20秒自动刷新房间列表
+            setInterval(loadRooms, 20000);
         });
     </script>
 </body>

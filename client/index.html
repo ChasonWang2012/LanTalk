@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>内网聊天室 - 支持Markdown</title>
+    <title>内网聊天室 - 支持Markdown和多房间</title>
     <style>
         * {
             margin: 0;
@@ -488,6 +488,82 @@
             font-size: 12px;
         }
 
+        /* 多房间功能样式 */
+        .room-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+            font-size: 14px;
+        }
+
+        .room-item:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .room-item.active {
+            background: #667eea;
+            font-weight: bold;
+        }
+
+        .room-item .room-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .room-item .user-count {
+            font-size: 11px;
+            opacity: 0.8;
+            background: rgba(0,0,0,0.2);
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        /* 房间创建表单样式 */
+        #room-create-form {
+            transition: all 0.3s ease;
+        }
+
+        #room-create-form input {
+            background: rgba(255,255,255,0.9);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: #2c3e50;
+        }
+
+        #room-create-form input::placeholder {
+            color: #7f8c8d;
+        }
+
+        #room-create-form button {
+            transition: background 0.3s;
+        }
+
+        #room-create-form button:hover {
+            opacity: 0.9;
+        }
+
+        /* 新建房间按钮样式 */
+        #create-room-btn {
+            transition: all 0.3s ease;
+            margin-left: 10px;
+        }
+
+        #create-room-btn:hover {
+            background: #219a52 !important;
+            transform: scale(1.05);
+        }
+
+        /* 房间列表标题容器 */
+        .sidebar h3 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
         /* 响应式设计 */
         @media (max-width: 768px) {
             .chat-container {
@@ -527,7 +603,8 @@
             2. 输入你的用户名<br>
             3. 点击"加入聊天"开始聊天<br>
             4. 按Enter发送，Shift+Enter换行<br>
-            5. 📝 支持Markdown语法
+            5. 📝 支持Markdown语法<br>
+            6. 🏠 支持多房间聊天
         </div>
     </div>
 
@@ -535,7 +612,20 @@
     <div id="chat-screen" class="chat-container hidden">
         <!-- 侧边栏 -->
         <div class="sidebar">
-            <h3>💬 聊天室</h3>
+            <h3>💬 聊天室 
+                <button id="create-room-btn" style="background: #27ae60; color: white; border: none; border-radius: 3px; padding: 2px 8px; font-size: 12px; cursor: pointer;">+ 新建</button>
+            </h3>
+            
+            <!-- 房间创建表单 -->
+            <div id="room-create-form" style="display: none; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                <input type="text" id="new-room-id" placeholder="房间ID" style="width: 100%; padding: 5px; margin-bottom: 5px; border: none; border-radius: 3px;">
+                <input type="text" id="new-room-name" placeholder="房间名称(可选)" style="width: 100%; padding: 5px; margin-bottom: 5px; border: none; border-radius: 3px;">
+                <div style="display: flex; gap: 5px;">
+                    <button onclick="createRoom()" style="flex: 1; background: #27ae60; color: white; border: none; border-radius: 3px; padding: 5px; cursor: pointer; font-size: 12px;">创建</button>
+                    <button onclick="cancelCreateRoom()" style="flex: 1; background: #95a5a6; color: white; border: none; border-radius: 3px; padding: 5px; cursor: pointer; font-size: 12px;">取消</button>
+                </div>
+            </div>
+            
             <div class="room-list" id="room-list">
                 <div class="room-item active">公共聊天室 (0)</div>
             </div>
@@ -560,7 +650,7 @@
 
             <div class="messages-container" id="messages-container">
                 <div class="message system">
-                    欢迎来到内网聊天室！支持Markdown语法。
+                    欢迎来到内网聊天室！支持Markdown语法和多房间功能。
                     <div class="markdown-hint">
                         <a href="javascript:void(0)" onclick="showMarkdownHelp()">📝 查看Markdown语法帮助</a>
                     </div>
@@ -628,6 +718,7 @@
                 this.isConnected = false;
                 
                 this.initializeEventListeners();
+                this.initializeRoomEvents();
                 console.log('聊天室应用初始化完成');
             }
 
@@ -687,6 +778,95 @@
                 });
 
                 console.log('事件监听器初始化完成');
+            }
+
+            // 初始化房间事件
+            initializeRoomEvents() {
+                const createRoomBtn = document.getElementById('create-room-btn');
+                const newRoomIdInput = document.getElementById('new-room-id');
+                const newRoomNameInput = document.getElementById('new-room-name');
+
+                if (createRoomBtn) {
+                    // 房间创建按钮事件
+                    createRoomBtn.addEventListener('click', () => {
+                        this.showRoomCreateForm();
+                    });
+
+                    // 回车键创建房间
+                    newRoomIdInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            this.createRoom();
+                        }
+                    });
+
+                    newRoomNameInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            this.createRoom();
+                        }
+                    });
+                }
+            }
+
+            // 显示房间创建表单
+            showRoomCreateForm() {
+                document.getElementById('room-create-form').style.display = 'block';
+                document.getElementById('new-room-id').focus();
+            }
+
+            // 隐藏房间创建表单
+            hideRoomCreateForm() {
+                document.getElementById('room-create-form').style.display = 'none';
+                document.getElementById('new-room-id').value = '';
+                document.getElementById('new-room-name').value = '';
+            }
+
+            // 创建房间
+            createRoom() {
+                const roomId = document.getElementById('new-room-id').value.trim();
+                const roomName = document.getElementById('new-room-name').value.trim();
+
+                if (!roomId) {
+                    alert('请输入房间ID');
+                    return;
+                }
+
+                if (roomId.length < 2 || roomId.length > 20) {
+                    alert('房间ID长度应为2-20个字符');
+                    return;
+                }
+
+                if (!this.socket || !this.isConnected) {
+                    alert('请先连接服务器');
+                    return;
+                }
+
+                this.socket.emit('create_room', {
+                    roomId: roomId,
+                    roomName: roomName || roomId
+                });
+
+                this.hideRoomCreateForm();
+            }
+
+            // 取消创建房间
+            cancelCreateRoom() {
+                this.hideRoomCreateForm();
+            }
+
+            // 加入房间
+            joinRoom(roomId, roomName) {
+                if (!this.socket || !this.isConnected) {
+                    alert('请先连接服务器');
+                    return;
+                }
+
+                this.socket.emit('join_room', {
+                    roomId: roomId
+                });
+
+                // 更新界面显示
+                document.getElementById('current-room').innerHTML = 
+                    `${roomName} <span id="connection-status" class="connection-status status-connected">已连接</span>`;
             }
 
             // 加入聊天室
@@ -851,6 +1031,30 @@
                     this.resetJoinButton();
                 });
 
+                // 房间创建成功
+                this.socket.on('room_created', (data) => {
+                    const { roomId, roomName } = data;
+                    this.showSystemMessage(`✅ 房间 "${roomName}" 创建成功！`);
+                    // 自动加入新创建的房间
+                    this.joinRoom(roomId, roomName);
+                });
+
+                // 房间加入成功
+                this.socket.on('room_joined', (data) => {
+                    const { roomId, roomName, userCount } = data;
+                    this.currentRoom = roomId;
+                    this.showSystemMessage(`✅ 已加入房间: ${roomName} (${userCount}人在线)`);
+                    
+                    // 更新房间列表激活状态
+                    this.updateRoomActiveState(roomId);
+                });
+
+                // 房间列表更新
+                this.socket.on('room_list', (rooms) => {
+                    console.log('收到房间列表:', rooms);
+                    this.updateRoomList(rooms);
+                });
+
                 // 接收消息
                 this.socket.on('message', (message) => {
                     this.displayMessage(message);
@@ -874,14 +1078,14 @@
                     this.showTypingIndicator(data.username, data.isTyping);
                 });
 
-                // 房间列表
-                this.socket.on('room_list', (rooms) => {
-                    this.updateRoomList(rooms);
-                });
-
                 // 错误处理
                 this.socket.on('error', (error) => {
-                    this.showError(error);
+                    console.error('Socket错误:', error);
+                    if (error.includes('禁言') || error.includes('无法创建房间')) {
+                        this.showError('❌ ' + error);
+                    } else {
+                        this.showError('❌ ' + error);
+                    }
                 });
 
                 // 连接断开
@@ -922,6 +1126,7 @@
                 // 获取房间列表
                 if (this.socket) {
                     this.socket.emit('get_rooms');
+                    console.log('已发送获取房间列表请求');
                 }
 
                 // 聚焦消息输入框
@@ -1096,51 +1301,53 @@
             // 更新房间列表
             updateRoomList(rooms) {
                 const roomList = document.getElementById('room-list');
+                console.log('更新房间列表，收到房间数:', rooms.length);
+                
                 roomList.innerHTML = '';
 
                 rooms.forEach(room => {
+                    console.log('处理房间:', room);
                     const roomElement = document.createElement('div');
-                    roomElement.className = `room-item ${room.id === this.currentRoom ? 'active' : ''}`;
+                    const isActive = room.id === this.currentRoom;
+                    roomElement.className = `room-item ${isActive ? 'active' : ''}`;
                     roomElement.innerHTML = `
-                        ${room.name} (${room.userCount})
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>${room.name}</span>
+                            <span style="font-size: 11px; opacity: 0.8;">${room.userCount}</span>
+                        </div>
                     `;
                     
                     roomElement.addEventListener('click', () => {
-                        this.switchRoom(room.id, room.name);
+                        if (room.id !== this.currentRoom) {
+                            this.joinRoom(room.id, room.name);
+                        }
                     });
                     
                     roomList.appendChild(roomElement);
                 });
+
+                // 如果没有房间，显示默认房间
+                if (rooms.length === 0) {
+                    console.log('没有房间，显示默认房间');
+                    const defaultRoom = document.createElement('div');
+                    defaultRoom.className = 'room-item active';
+                    defaultRoom.innerHTML = '公共聊天室 (0)';
+                    roomList.appendChild(defaultRoom);
+                }
             }
 
-            // 切换房间
-            switchRoom(roomId, roomName) {
-                if (roomId === this.currentRoom) return;
-
-                this.currentRoom = roomId;
-                this.socket.emit('join', {
-                    username: this.currentUser,
-                    roomId: roomId
-                });
-
-                // 更新当前房间显示
-                const currentRoomElement = document.getElementById('current-room');
-                currentRoomElement.innerHTML = `${roomName} <span id="connection-status" class="connection-status status-connected">已连接</span>`;
-
-                // 更新房间列表激活状态
+            // 更新房间激活状态
+            updateRoomActiveState(activeRoomId) {
                 document.querySelectorAll('.room-item').forEach(item => {
                     item.classList.remove('active');
                 });
                 
                 document.querySelectorAll('.room-item').forEach(item => {
-                    if (item.textContent?.includes(roomName)) {
+                    if (item.textContent.includes(activeRoomId) || 
+                        item.textContent.includes(this.currentRoom)) {
                         item.classList.add('active');
                     }
                 });
-
-                // 清空消息容器
-                const messagesContainer = document.getElementById('messages-container');
-                messagesContainer.innerHTML = '<div class="message system">正在加载消息...</div>';
             }
 
             // 显示输入状态
@@ -1184,6 +1391,19 @@
             document.getElementById('overlay').style.display = 'none';
         }
 
+        // 全局函数供HTML按钮调用
+        function createRoom() {
+            if (window.chatApp) {
+                window.chatApp.createRoom();
+            }
+        }
+
+        function cancelCreateRoom() {
+            if (window.chatApp) {
+                window.chatApp.cancelCreateRoom();
+            }
+        }
+
         // 点击遮罩层关闭帮助
         document.getElementById('overlay').addEventListener('click', hideMarkdownHelp);
 
@@ -1196,8 +1416,8 @@
 
         // 页面加载完成后启动应用
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('DOM加载完成，启动支持Markdown的聊天应用...');
-            new ChatApp();
+            console.log('DOM加载完成，启动支持多房间的聊天应用...');
+            window.chatApp = new ChatApp();
         });
     </script>
 </body>
